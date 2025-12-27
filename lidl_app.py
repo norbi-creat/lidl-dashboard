@@ -32,7 +32,7 @@ def connect_to_sheets():
     try:
         creds_dict = st.secrets["gcp_service_account"]
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_key_file_dict(creds_dict, scope)
+        creds = ServiceAccountCredentials.from_json_key_dict(creds_dict, scope)
         client = gspread.authorize(creds)
         # Győződj meg róla, hogy a Google Táblázatod neve pontosan ez:
         sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
@@ -87,3 +87,4 @@ elif page == "💰 Kalkulátor":
     
     osszesen = egysegar * mennyiseg
     st.metric("Végösszeg", f"{osszesen:,.0f} Ft".replace(",", " "))
+

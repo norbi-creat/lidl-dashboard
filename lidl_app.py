@@ -1,3 +1,4 @@
+import json
 import streamlit as st
 import pandas as pd
 import gspread
@@ -30,17 +31,20 @@ if not check_password():
 # --- KAPCSOLÓDÁS A TÁBLÁZATHOZ ---
 def connect_to_sheets():
     try:
-        creds_info = st.secrets["gcp_service_account"]
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        
-        # Ez a legmodernebb és legbiztosabb beolvasási mód:
+        # Itt kényszerítjük, hogy szövegből listává alakítsa az adatot
+        raw_creds = st.secrets["gcp_service_account"]
+        if isinstance(raw_creds, str):
+            creds_info = json.loads(raw_creds)
+        else:
+            creds_info = dict(raw_creds)
+            
         client = gspread.service_account_from_dict(creds_info)
-        
         sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
         return sheet
     except Exception as e:
         st.error(f"Csatlakozási hiba: {e}")
         return None
+2. A Secrets ellenőrzése (Strea
 
 # --- OLDALSÁV (MENÜ) ---
 st.sidebar.title("Menü")
@@ -88,5 +92,6 @@ elif page == "💰 Kalkulátor":
     
     osszesen = egysegar * mennyiseg
     st.metric("Végösszeg", f"{osszesen:,.0f} Ft".replace(",", " "))
+
 
 

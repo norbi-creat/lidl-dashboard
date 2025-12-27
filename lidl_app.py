@@ -64,43 +64,24 @@ if page == "📊 Műszerfal":
             st.info("Még nincs rögzített adat.")
 
 # --- 2. NAPI JELENTÉS ---
-elif page == "📝 Napi jelentés":
-    st.title("📝 Napi Jelentés Rögzítése")
-    with st.form("napi_form"):
-        datum = st.date_input("Dátum", datetime.now())
-        fazis = st.selectbox("Munkafolyamat", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Áthidalás", "Egyéb"])
-        letszam = st.number_input("Létszám (fő)", min_value=1, value=4)
-        leiras = st.text_area("Rövid leírás a napi munkáról")
+if submit_napi:
+    if sheet:
+        # Sorrend: Dátum(A), Szakasz(B), Létszám(C), Leírás(D), Hiba?(E), Típus(F), Késés(G), Idő(H)
+        # Itt a napi jelentésnél a hiba oszlopokba alapértelmezett értékeket írunk
+        uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
+        sheet.append_row(uj_sor)
+        st.success("Adat elmentve!")
+        st.balloons()
         
-        submit_napi = st.form_submit_button("Adatok Mentése")
-        
-        if submit_napi:
-            if sheet:
-                # PONTOSAN 8 OSZLOP: Dátum, Szakasz, Létszám, Leírás, Hiba?, Típus, Késés, Időbélyeg
-                uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
-                sheet.append_row(uj_sor)
-                st.success("Adat elmentve!")
-                st.balloons()
-
 # --- 3. HIBA JELENTÉSE ---
-elif page == "⚠️ Hiba jelentése":
-    st.title("⚠️ Probléma vagy Késés Jelentése")
-    with st.form("hiba_form"):
-        st.warning("Ezt akkor töltsd ki, ha valami hátráltatja a munkát!")
-        datum_h = st.date_input("Dátum", datetime.now())
-        szakasz_h = st.selectbox("Melyik fázisnál?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
-        hiba_tipus = st.selectbox("Hiba típusa", ["Logisztikai", "Műszaki", "Időjárás", "Személyi"])
-        keses = st.number_input("Várható késés (óra)", min_value=0.0, step=0.5)
+if submit_hiba:
+    if sheet:
+        # Sorrend ugyanaz: Dátum(A), Szakasz(B), Létszám(C), Leírás(D), Hiba?(E), Típus(F), Késés(G), Idő(H)
+        # Itt a C és D oszlopba üres szöveget teszünk, hogy a többi adat a helyére kerüljön
+        uj_sor_h = [str(datum_h), szakasz_h, "", "", "Igen", hiba_tipus, keses, datetime.now().strftime("%H:%M:%S")]
+        sheet.append_row(uj_sor_h)
+        st.error("Hiba rögzítve!")
         
-        submit_hiba = st.form_submit_button("Hiba rögzítése")
-        
-        if submit_hiba:
-            if sheet:
-                # PONTOSAN 8 OSZLOP: A 3. és 4. oszlop üres marad (""), hogy a hiba adatai az E-F-G-be kerüljenek
-                uj_sor_h = [str(datum_h), szakasz_h, "", "", "Igen", hiba_tipus, keses, datetime.now().strftime("%H:%M:%S")]
-                sheet.append_row(uj_sor_h)
-                st.error("Hiba rögzítve!")
-
 # --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
     st.title("💰 Gyors Kalkulátor")
@@ -109,6 +90,7 @@ elif page == "💰 Kalkulátor":
     brutto = netto + puffer
     st.metric("Puffer (15%)", f"{puffer:,.0f} Ft".replace(",", " "))
     st.metric("Mindösszesen", f"{brutto:,.0f} Ft".replace(",", " "))
+
 
 
 

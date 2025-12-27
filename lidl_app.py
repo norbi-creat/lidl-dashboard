@@ -54,20 +54,28 @@ page = st.sidebar.radio("Menü", ["📊 Műszerfal", "📝 Napi jelentés", "⚠
 st.sidebar.write("---")
 kod_valasztas = st.sidebar.selectbox("Válassz Bolt kódot:", list(BOLTOK.keys()), format_func=lambda x: f"{x} - {BOLTOK[x]}")
 
-# --- 1. MŰSZERFAL (Szűrés Bolt kódra) ---
+# --- 1. MŰSZERFAL (JAVÍTOTT NÉZET) ---
 if page == "📊 Műszerfal":
-    st.title(f"🏗️ Projekt: {kod_valasztas} ({BOLTOK[kod_valasztas]})")
+    st.title(f"🏗️ Projekt: {kod_valasztas}")
+    st.subheader(BOLTOK[kod_valasztas])
+    
     if sheet:
         data = sheet.get_all_values()
         if len(data) > 1:
             df = pd.DataFrame(data[1:], columns=data[0])
-            # Szűrés a Bolt kód oszlopra (A oszlop)
             df_szurt = df[df['Bolt kód'] == kod_valasztas]
             
             if not df_szurt.empty:
-                st.dataframe(df_szurt.tail(20), use_container_width=True)
+                st.write("### Aktuális adatok")
+                # A data_editor kényelmesebb, és itt kényszerítjük a teljes szélességet
+                st.data_editor(
+                    df_szurt, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    disabled=True  # Csak megtekintésre, itt nem szerkeszthető
+                )
             else:
-                st.info(f"A(z) {kod_valasztas} kódszámú bolthoz még nincs adat.")
+                st.info(f"Nincs adat ehhez a bolthoz: {kod_valasztas}")
 
 # --- 2. NAPI JELENTÉS ---
 elif page == "📝 Napi jelentés":
@@ -147,6 +155,7 @@ elif page == "📄 Dokumentum generáló":
                 
                 pdf_bytes = bytes(pdf.output())
                 st.download_button(label="📥 PDF Jegyzőkönyv Letöltése", data=pdf_bytes, file_name=f"Lidl_{h_adat['Bolt kód']}_jkv.pdf", mime="application/pdf")
+
 
 
 

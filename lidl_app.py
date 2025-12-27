@@ -44,7 +44,6 @@ def connect_to_sheets():
     except Exception as e:
         st.error(f"Csatlakozási hiba: {e}")
         return None
-2. A Secrets ellenőrzése (Strea
 
 # --- OLDALSÁV (MENÜ) ---
 st.sidebar.title("Menü")
@@ -92,6 +91,7 @@ elif page == "💰 Kalkulátor":
     
     osszesen = egysegar * mennyiseg
     st.metric("Végösszeg", f"{osszesen:,.0f} Ft".replace(",", " "))
+
 
 
 

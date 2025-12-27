@@ -3,97 +3,43 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-from fpdf import FPDF
-import base64
 
-# --- GOOGLE SHEETS KAPCSOLAT ---
+# --- PASSWORD PROTECTION ---
+def check_password():
+    def password_entered():
+        if st.session_state["password"] == "Lidl2025":
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.title("🔐 Ani-Roll Login")
+        st.text_input("Please enter password:", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.title("🔐 Ani-Roll Login")
+        st.text_input("Please enter password:", type="password", on_change=password_entered, key="password")
+        st.error("😕 Incorrect password!")
+        return False
+    else:
+        return True
+
+if not check_password():
+    st.stop()
+
+# --- CONNECTION ---
 def connect_to_sheets():
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-        client = gspread.authorize(creds)
-        # Pontosan ez legyen a Google Sheets neve:
-        sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
-        return sheet
+        if "gcp_service_account" in st.secrets:
+            creds_dict = st.secrets["gcp_service_account"]
+            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+            creds = ServiceAccountCredentials.from_json_key_file_dict(creds_dict, scope)
+            client = gspread.authorize(creds)
+            sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
+            return sheet
     except Exception as e:
-        st.error(f"Hiba a Google Sheets kapcsolódásnál: {e}")
+        st.error(f"Error: {e}")
         return None
 
-# --- PDF GENERÁLÓ FUNKCIÓ ---
-def create_pdf():
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.add_font('DejaVu', '', 'https://github.com/reingart/pyfpdf/raw/master/font/DejaVuSans.ttf', uni=True)
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(200, 10, "ALVÁLLALKOZÓI SZERZŐDÉS - SABLON", ln=True, align='C')
-    pdf.ln(10)
-    pdf.set_font('Arial', '', 12)
-    pdf.multi_cell(0, 10, f"Projekt: Lidl Beton Terasz\nKelt: {datetime.now().strftime('%Y-%m-%d')}\n\nEz a dokumentum az Ani-Roll Kft. hivatalos szerződésmintája.")
-    return pdf.output(dest="S").encode("latin-1")
-
-# --- OLDAL BEÁLLÍTÁSOK ---
-st.set_page_config(page_title="Ani-Roll Cloud", layout="wide")
-
-# Menü
-menu = st.sidebar.radio("Navigáció", ["📊 Dashboard", "📝 Napi Jelentés", "💰 Kalkulátor", "📂 Dokumentumok"])
-
-# --- DASHBOARD ---
-if menu == "📊 Dashboard":
-    st.title("🏗️ Projekt Irányítópult")
-    
-    sheet = connect_to_sheets()
-    if sheet:
-        data = sheet.get_all_records()
-        df = pd.DataFrame(data)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Összes jelentés", len(df))
-        with col2:
-            st.metric("Utolsó munkavégzés", df['Dátum'].iloc[-1] if not df.empty else "Nincs adat")
-        with col3:
-            st.metric("Státusz", "Aktív", delta="Időben")
-            
-        st.subheader("Legutóbbi események (Élő a Sheets-ből)")
-        if not df.empty:
-            st.dataframe(df.tail(5), use_container_width=True)
-        else:
-            st.write("Még nincs beküldött jelentés.")
-
-# --- NAPI JELENTÉS ---
-elif menu == "📝 Napi Jelentés":
-    st.header("Napi Munkahelyzeti Jelentés")
-    with st.form("napi_form"):
-        date = st.date_input("Dátum", datetime.now())
-        phase = st.selectbox("Munkaszakasz", ["Földmunka", "Zsaluzás", "Betonozás", "Ajtónyílás", "Befejezés"])
-        workers = st.number_input("Létszám", min_value=1, value=4)
-        desc = st.text_area("Munka részletezése")
-        weather = st.selectbox("Időjárás", ["Napos", "Felhős", "Eső", "Fagy"])
-        
-        submit = st.form_submit_button("Küldés a Táblázatba")
-        
-        if submit:
-            sheet = connect_to_sheets()
-            if sheet:
-                # Sor: Dátum, Munkaszakasz, Létszám, Leírás, Időjárás, Időbélyeg
-                new_row = [str(date), phase, workers, desc, weather, datetime.now().strftime("%H:%M:%S")]
-                sheet.append_row(new_row)
-                st.success("Sikeresen mentve a Google Sheets-be!")
-                st.balloons()
-
-# --- KALKULÁTOR ---
-elif menu == "💰 Kalkulátor":
-    st.header("Kötbér Számítás")
-    base = st.number_input("Nettó szerződéses összeg", value=5000000)
-    days = st.slider("Késedelmes napok", 0, 30, 0)
-    penalty = days * (base * 0.005)
-    st.subheader(f"Levonandó kötbér: {penalty:,.0f} Ft")
-
-# --- DOKUMENTUMOK ---
-elif menu == "📂 Dokumentumok":
-    st.header("Letölthető Sablonok")
-    if st.button("Alvállalkozói Szerződés Generálása"):
-        pdf_data = create_pdf()
-        b64 = base64.b64encode(pdf_data).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="szerzodes.pdf">Kattints ide a PDF letöltéséhez</a>'
-        st.markdown(href, unsafe_allow_html=True)
+st.success("Siker! Bejelentkezve.")

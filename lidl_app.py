@@ -47,8 +47,24 @@ if page == "📊 Műszerfal":
     if sheet:
         data = sheet.get_all_values()
         if len(data) > 1:
-            df = pd.DataFrame(data[1:], columns=data[0])
+            headers = data[0]
+            rows = data[1:]
+            
+            # --- JAVÍTÁS: Automatikusan egyedivé tesszük a fejlécneveket ---
+            unique_headers = []
+            for i, h in enumerate(headers):
+                new_header = h if h.strip() else f"Oszlop_{i}"
+                if new_header in unique_headers:
+                    unique_headers.append(f"{new_header}_{i}")
+                else:
+                    unique_headers.append(new_header)
+            
+            df = pd.DataFrame(rows, columns=unique_headers)
+            
+            st.write("### Utolsó rögzített tevékenységek")
             st.dataframe(df.tail(15), use_container_width=True)
+        else:
+            st.info("A táblázat jelenleg üres. Rögzítsen új adatot a menüben!")
 
 # --- 2. NAPI JELENTÉS ---
 elif page == "📝 Napi jelentés":
@@ -85,6 +101,7 @@ elif page == "💰 Kalkulátor":
     st.title("💰 Kalkulátor")
     netto = st.number_input("Nettó (Ft)", min_value=0, value=100000)
     st.metric("Végösszeg (15% pufferrel)", f"{netto * 1.15:,.0f} Ft")
+
 
 
 

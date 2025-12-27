@@ -57,12 +57,16 @@ if page == "📊 Műszerfal":
     if sheet:
         data = sheet.get_all_values()
         if len(data) > 1:
+            # Létrehozzuk a táblázatot
             df = pd.DataFrame(data[1:], columns=data[0])
+            
+            # --- JAVÍTÁS: Ez a sor kezeli az ismétlődő oszlopneveket ---
+            df.columns = [f"{col}_{i}" if list(data[0]).count(col) > 1 else col for i, col in enumerate(data[0])]
+            
             st.write("### Utolsó rögzített tevékenységek")
             st.dataframe(df.tail(10), use_container_width=True)
         else:
             st.info("Még nincs rögzített adat a táblázatban.")
-
 # --- 2. NAPI JELENTÉS (ADATBEKÜLDÉS) ---
 elif page == "📝 Napi jelentés":
     st.title("📝 Napi Jelentés Rögzítése")
@@ -91,6 +95,7 @@ elif page == "💰 Kalkulátor":
     
     osszesen = egysegar * mennyiseg
     st.metric("Végösszeg", f"{osszesen:,.0f} Ft".replace(",", " "))
+
 
 
 

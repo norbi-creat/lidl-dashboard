@@ -30,11 +30,12 @@ if not check_password():
 # --- KAPCSOLÓDÁS A TÁBLÁZATHOZ ---
 def connect_to_sheets():
     try:
-        creds_dict = st.secrets["gcp_service_account"]
+        creds_info = st.secrets["gcp_service_account"]
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_key_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        # Győződj meg róla, hogy a Google Táblázatod neve pontosan ez:
+        
+        # Ez a legmodernebb és legbiztosabb beolvasási mód:
+        client = gspread.service_account_from_dict(creds_info)
+        
         sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
         return sheet
     except Exception as e:
@@ -87,4 +88,5 @@ elif page == "💰 Kalkulátor":
     
     osszesen = egysegar * mennyiseg
     st.metric("Végösszeg", f"{osszesen:,.0f} Ft".replace(",", " "))
+
 

@@ -12,42 +12,34 @@ def check_password():
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
-
     if "password_correct" not in st.session_state:
         st.title("🔐 Ani-Roll Login")
-        st.text_input("Kérem a jelszót:", type="password", on_change=password_entered, key="password")
+        st.text_input("Jelszó:", type="password", on_change=password_entered, key="password")
         return False
     elif not st.session_state["password_correct"]:
         st.error("😕 Hibás jelszó!")
-        st.text_input("Kérem a jelszót:", type="password", on_change=password_entered, key="password")
+        st.text_input("Jelszó:", type="password", on_change=password_entered, key="password")
         return False
-    else:
-        return True
+    return True
 
 if not check_password():
     st.stop()
 
-# --- KAPCSOLÓDÁS A TÁBLÁZATHOZ ---
+# --- KAPCSOLÓDÁS ---
 def connect_to_sheets():
     try:
         raw_creds = st.secrets["gcp_service_account"]
-        if isinstance(raw_creds, str):
-            creds_info = json.loads(raw_creds)
-        else:
-            creds_info = dict(raw_creds)
-            
+        creds_info = json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
         client = gspread.service_account_from_dict(creds_info)
-        sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
-        return sheet
+        return client.open("Lidl_Projekt_Adatbazis").sheet1
     except Exception as e:
-        st.error(f"Csatlakozási hiba: {e}")
+        st.error(f"Hiba: {e}")
         return None
 
-# --- OLDALSÁV (MENÜ) ---
-st.sidebar.title("Menü")
-page = st.sidebar.radio("Válassz funkciót:", ["📊 Műszerfal", "📝 Napi jelentés", "⚠️ Hiba jelentése", "💰 Kalkulátor"])
-
 sheet = connect_to_sheets()
+
+# --- MENÜ ---
+page = st.sidebar.radio("Menü", ["📊 Műszerfal", "📝 Napi jelentés", "⚠️ Hiba jelentése", "💰 Kalkulátor"])
 
 # --- 1. MŰSZERFAL ---
 if page == "📊 Műszerfal":
@@ -56,41 +48,43 @@ if page == "📊 Műszerfal":
         data = sheet.get_all_values()
         if len(data) > 1:
             df = pd.DataFrame(data[1:], columns=data[0])
-            # Dupla oszlopnevek kezelése az appban
-            df.columns = [f"{col}_{i}" if list(data[0]).count(col) > 1 else col for i, col in enumerate(data[0])]
-            st.write("### Utolsó rögzített tevékenységek")
             st.dataframe(df.tail(15), use_container_width=True)
-        else:
-            st.info("Még nincs rögzített adat.")
 
 # --- 2. NAPI JELENTÉS ---
-if submit_napi:
-    if sheet:
-        # Sorrend: Dátum(A), Szakasz(B), Létszám(C), Leírás(D), Hiba?(E), Típus(F), Késés(G), Idő(H)
-        # Itt a napi jelentésnél a hiba oszlopokba alapértelmezett értékeket írunk
-        uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
-        sheet.append_row(uj_sor)
-        st.success("Adat elmentve!")
-        st.balloons()
+elif page == "📝 Napi jelentés":
+    st.title("📝 Napi Jelentés")
+    with st.form("napi_form"):
+        datum = st.date_input("Dátum", datetime.now())
+        fazis = st.selectbox("Munka", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        letszam = st.number_input("Létszám", min_value=1, value=4)
+        leiras = st.text_area("Leírás")
+        submit_napi = st.form_submit_button("Mentés")
         
+        if submit_napi: # Ez most már a formon BELÜL van!
+            uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
+            sheet.append_row(uj_sor)
+            st.success("Sikeres mentés!")
+
 # --- 3. HIBA JELENTÉSE ---
-if submit_hiba:
-    if sheet:
-        # Sorrend ugyanaz: Dátum(A), Szakasz(B), Létszám(C), Leírás(D), Hiba?(E), Típus(F), Késés(G), Idő(H)
-        # Itt a C és D oszlopba üres szöveget teszünk, hogy a többi adat a helyére kerüljön
-        uj_sor_h = [str(datum_h), szakasz_h, "", "", "Igen", hiba_tipus, keses, datetime.now().strftime("%H:%M:%S")]
-        sheet.append_row(uj_sor_h)
-        st.error("Hiba rögzítve!")
+elif page == "⚠️ Hiba jelentése":
+    st.title("⚠️ Hiba/Késés")
+    with st.form("hiba_form"):
+        datum_h = st.date_input("Dátum", datetime.now())
+        fazis_h = st.selectbox("Hol?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        tipus = st.selectbox("Típus", ["Logisztikai", "Műszaki", "Időjárás"])
+        ora = st.number_input("Késés (óra)", min_value=0.0)
+        submit_hiba = st.form_submit_button("Hiba rögzítése")
         
+        if submit_hiba: # Ez is a formon BELÜL van!
+            uj_sor_h = [str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]
+            sheet.append_row(uj_sor_h)
+            st.error("Hiba rögzítve!")
+
 # --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
-    st.title("💰 Gyors Kalkulátor")
-    netto = st.number_input("Nettó becsült összeg (Ft)", min_value=0, value=100000)
-    puffer = netto * 0.15
-    brutto = netto + puffer
-    st.metric("Puffer (15%)", f"{puffer:,.0f} Ft".replace(",", " "))
-    st.metric("Mindösszesen", f"{brutto:,.0f} Ft".replace(",", " "))
-
+    st.title("💰 Kalkulátor")
+    netto = st.number_input("Nettó (Ft)", min_value=0, value=100000)
+    st.metric("Végösszeg (15% pufferrel)", f"{netto * 1.15:,.0f} Ft")
 
 
 

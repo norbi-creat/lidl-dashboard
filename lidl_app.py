@@ -98,53 +98,72 @@ elif page == "💰 Kalkulátor":
             oradij = st.number_input("Kötbér (Ft/óra)", value=15000)
             st.error(f"Kötbér összege: {osszes_ora * oradij:,.0f} Ft".replace(",", " "))
 
-# --- 5. DOKUMENTUM GENERÁLÓ (ÉKEZET JAVÍTVA) ---
+# --- 5. DOKUMENTUM GENERÁLÓ (STABIL VERZIÓ) ---
 elif page == "📄 Dokumentum generáló":
     st.title("📄 Jegyzőkönyv exportálása")
     if sheet:
         data = sheet.get_all_values()
-        df = pd.DataFrame(data[1:], columns=data[0])
-        hibak = df[df['Hiba történt-e'] == 'Igen']
-        
-        if not hibak.empty:
-            kivalasztott_index = st.selectbox("Válassz ki egy eseményt:", hibak.index, format_func=lambda x: f"{hibak.loc[x, 'Dátum']} - {hibak.loc[x, 'Munkaszakasz']}")
+        if len(data) > 1:
+            df = pd.DataFrame(data[1:], columns=data[0])
+            hibak = df[df['Hiba történt-e'] == 'Igen']
             
-            if st.button("PDF Jegyzőkönyv Generálása"):
-                hiba_adat = hibak.loc[kivalasztott_index]
+            if not hibak.empty:
+                # Esemény kiválasztása
+                valasztas = st.selectbox("Válassz ki egy eseményt:", 
+                                         hibak.index, 
+                                         format_func=lambda x: f"{hibak.loc[x, 'Dátum']} - {hibak.loc[x, 'Munkaszakasz']}")
                 
-                pdf = FPDF()
-                pdf.add_page()
-                # A standard Helvetica betűtípust használjuk, ami jobban bírja az alap ékezeteket
-                pdf.set_font("Helvetica", 'B', 16)
-                pdf.cell(0, 10, "LIDL PROJEKT - SZALLITASI JEGYZOKONYV", new_x="LMARGIN", new_y="NEXT", align='C')
-                pdf.ln(10)
-                
-                pdf.set_font("Helvetica", size=12)
-                pdf.cell(0, 10, f"Datum: {datetime.now().strftime('%Y-%m-%d')}", new_x="LMARGIN", new_y="NEXT")
-                pdf.cell(0, 10, f"Helyszin: Lidl Projekt Munkaterulet", new_x="LMARGIN", new_y="NEXT")
-                pdf.ln(5)
-                
-                szoveg = f"A mai napon ({hiba_adat['Dátum']}) rögzítésre került egy {hiba_adat['Hiba típusa']} típusú hiba a {hiba_adat['Munkaszakasz']} fázisban. A késés mértéke: {hiba_adat['Késés órában']} óra."
-                
-                # Eltávolítjuk a speciális ő és ű betűket, hogy ne legyen hiba
-                biztonsagos_szoveg = szoveg.replace('ő', 'o').replace('Ő', 'O').replace('ű', 'u').replace('Ű', 'U')
-                
-                pdf.multi_cell(0, 10, biztonsagos_szoveg)
-                pdf.ln(20)
-                pdf.cell(0, 10, "..........................................", new_x="LMARGIN", new_y="NEXT")
-                pdf.cell(0, 10, "Alairas (Ani-Roll Kft.)", new_x="LMARGIN", new_y="NEXT")
-                
-                # PDF generálása memóriába
-                pdf_bytes = pdf.output()
-                
-                st.download_button(
-                    label="📥 PDF Letöltése",
-                    data=pdf_bytes,
-                    file_name=f"jegyzokonyv_{hiba_adat['Dátum']}.pdf",
-                    mime="application/pdf"
-                )
-        else:
-            st.warning("Nincs rögzített hiba.")
+                if st.button("PDF Jegyzőkönyv Generálása"):
+                    hiba_adat = hibak.loc[valasztas]
+                    
+                    # PDF objektum létrehozása
+                    pdf = FPDF()
+                    pdf.add_page()
+                    
+                    # Címsor
+                    pdf.set_font("Helvetica", 'B', 16)
+                    pdf.cell(0, 10, "LIDL PROJEKT - SZALLITASI JEGYZOKONYV", align='C')
+                    pdf.ln(20)
+                    
+                    # Adatok
+                    pdf.set_font("Helvetica", size=12)
+                    pdf.cell(0, 10, f"Datum: {datetime.now().strftime('%Y-%m-%d')}", ln=True)
+                    pdf.cell(0, 10, f"Helyszin: Lidl Projekt Munkaterulet", ln=True)
+                    pdf.ln(10)
+                    
+                    # Szöveg összeállítása ékezetek nélkül a hiba elkerülése végett
+                    leiras = (f"A bejegyzett hiba tipusa: {hiba_adat['Hiba típusa']}. "
+                              f"A munkaszakasz: {hiba_adat['Munkaszakasz']}. "
+                              f"A keses merteke: {hiba_adat['Késés órában']} ora.")
+                    
+                    # Ékezetmentesítés (biztonsági játék)
+                    def clean_text(text):
+                        replacements = {'á':'a','é':'e','í':'i','ó':'o','ö':'o','ő':'o','ú':'u','ü':'u','ű':'u',
+                                        'Á':'A','É':'E','Í':'I','Ó':'O','Ö':'O','Ő':'O','Ú':'U','Ü':'U','Ű':'U'}
+                        for k, v in replacements.items():
+                            text = text.replace(k, v)
+                        return text
+
+                    pdf.multi_cell(0, 10, clean_text(leiras))
+                    pdf.ln(20)
+                    pdf.cell(0, 10, "..........................................", ln=True)
+                    pdf.cell(0, 10, "Alairas (Ani-Roll Kft.)", ln=True)
+                    
+                    # PDF mentése változóba
+                    try:
+                        pdf_bytes = pdf.output() # fpdf2 esetén ez byte-okat ad vissza
+                        
+                        st.download_button(
+                            label="📥 PDF Letöltése",
+                            data=pdf_bytes,
+                            file_name=f"jegyzokonyv_{hiba_adat['Dátum']}.pdf",
+                            mime="application/pdf"
+                        )
+                    except Exception as e:
+                        st.error(f"Hiba a PDF generálása közben: {e}")
+            else:
+                st.warning("Nincs rögzített hiba a táblázatban.")
+
 
 
 

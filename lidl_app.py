@@ -66,41 +66,35 @@ if page == "📊 Műszerfal":
         else:
             st.info("A táblázat jelenleg üres. Rögzítsen új adatot a menüben!")
 
-# --- 2. NAPI JELENTÉS ---
-elif page == "📝 Napi jelentés":
-    st.title("📝 Napi Jelentés")
-    with st.form("napi_form"):
-        datum = st.date_input("Dátum", datetime.now())
-        fazis = st.selectbox("Munka", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
-        letszam = st.number_input("Létszám", min_value=1, value=4)
-        leiras = st.text_area("Leírás")
-        submit_napi = st.form_submit_button("Mentés")
+# --- 2. NAPI JELENTÉS BEKÜLDÉSE ---
+if submit_napi:
+    if sheet:
+        # PONTOSAN 8 ADAT: A(Dátum), B(Szakasz), C(Létszám), D(Leírás), E(Hiba), F(Típus), G(Késés), H(Idő)
+        uj_sor = [[str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]]
         
-        if submit_napi: # Ez most már a formon BELÜL van!
-            uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
-            sheet.append_row(uj_sor)
-            st.success("Sikeres mentés!")
-
-# --- 3. HIBA JELENTÉSE ---
-elif page == "⚠️ Hiba jelentése":
-    st.title("⚠️ Hiba/Késés")
-    with st.form("hiba_form"):
-        datum_h = st.date_input("Dátum", datetime.now())
-        fazis_h = st.selectbox("Hol?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
-        tipus = st.selectbox("Típus", ["Logisztikai", "Műszaki", "Időjárás"])
-        ora = st.number_input("Késés (óra)", min_value=0.0)
-        submit_hiba = st.form_submit_button("Hiba rögzítése")
+        # Ez a parancs kényszeríti az A oszloptól való írást:
+        sheet.append_rows(uj_sor, value_input_option='RAW')
         
-        if submit_hiba: # Ez is a formon BELÜL van!
-            uj_sor_h = [str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]
-            sheet.append_row(uj_sor_h)
-            st.error("Hiba rögzítve!")
+        st.success("Adat elmentve az A oszloptól!")
+        st.balloons()
 
+# --- 3. HIBA JELENTÉSE BEKÜLDÉSE ---
+if submit_hiba:
+    if sheet:
+        # Itt is PONTOSAN 8 ADAT, üres helyekkel a C és D oszlopban
+        uj_sor_h = [[str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]]
+        
+        # Kényszerített írás az A oszloptól:
+        sheet.append_rows(uj_sor_h, value_input_option='RAW')
+        
+        st.error("Hiba rögzítve az A oszloptól!")
+        
 # --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
     st.title("💰 Kalkulátor")
     netto = st.number_input("Nettó (Ft)", min_value=0, value=100000)
     st.metric("Végösszeg (15% pufferrel)", f"{netto * 1.15:,.0f} Ft")
+
 
 
 

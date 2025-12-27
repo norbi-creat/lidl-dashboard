@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 import json
 from datetime import datetime
+from fpdf import FPDF  # Új könyvtár a PDF-hez
 
 # --- JELSZÓ VÉDELEM ---
 def check_password():
@@ -39,7 +40,7 @@ def connect_to_sheets():
 sheet = connect_to_sheets()
 
 # --- MENÜ ---
-page = st.sidebar.radio("Menü", ["📊 Műszerfal", "📝 Napi jelentés", "⚠️ Hiba jelentése", "💰 Kalkulátor"])
+page = st.sidebar.radio("Menü", ["📊 Műszerfal", "📝 Napi jelentés", "⚠️ Hiba jelentése", "💰 Kalkulátor", "📄 Dokumentum generáló"])
 
 # --- 1. MŰSZERFAL ---
 if page == "📊 Műszerfal":
@@ -63,7 +64,6 @@ elif page == "📝 Napi jelentés":
         submit_napi = st.form_submit_button("Mentés")
         
         if submit_napi:
-            # 8 oszlop: A(Dátum), B(Szakasz), C(Létszám), D(Leírás), E(Hiba), F(Típus), G(Késés), H(Idő)
             uj_sor = [[str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]]
             sheet.append_rows(uj_sor, value_input_option='USER_ENTERED', table_range='A1:H1')
             st.success("Mentve!")
@@ -79,47 +79,57 @@ elif page == "⚠️ Hiba jelentése":
         submit_hiba = st.form_submit_button("Hiba rögzítése")
         
         if submit_hiba:
-            # Itt rögzítjük az "Igen"-t az E oszlopban és az órát a G oszlopban
             uj_sor_h = [[str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]]
             sheet.append_rows(uj_sor_h, value_input_option='USER_ENTERED', table_range='A1:H1')
-            st.error(f"Hiba rögzítve: {ora} óra késés.")
+            st.error(f"Hiba rögzítve!")
 
-# --- 4. OKOS KALKULÁTOR (Adatbázis alapú) ---
+# --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
     st.title("💰 Intelligens Kötbér Kalkulátor")
-    
     if sheet:
         data = sheet.get_all_values()
         if len(data) > 1:
             df = pd.DataFrame(data[1:], columns=data[0])
-            
-            # Csak a hiba-sorokat szűrjük ki (ahol E oszlop = Igen)
             hibak = df[df['Hiba történt-e'] == 'Igen'].copy()
-            
-            # Kiszámoljuk az összesített késést órában
             hibak['Késés órában'] = pd.to_numeric(hibak['Késés órában'], errors='coerce').fillna(0)
-            osszes_ora_keses = hibak['Késés órában'].sum()
+            osszes_ora = hibak['Késés órában'].sum()
             
-            st.subheader("Aktuális projekt állapot")
-            col1, col2 = st.columns(2)
-            col1.metric("Összes hiba száma", len(hibak))
-            col2.metric("Összes késés", f"{osszes_ora_keses} óra")
-            
-            st.write("---")
-            st.subheader("Pénzügyi levonás")
-            oradij = st.number_input("Kötbér mértéke (Ft / óra késés)", min_value=0, value=15000)
-            
-            varhato_kotber = osszes_ora_keses * oradij
-            
-            if varhato_kotber > 0:
-                st.error(f"A táblázat adatai alapján levonandó kötbér: {varhato_kotber:,.0f} Ft".replace(",", " "))
-                st.write("### Érintett hibák listája:")
-                st.table(hibak[['Dátum', 'Munkaszakasz', 'Hiba típusa', 'Késés órában']])
-            else:
-                st.success("A táblázat szerint nincs jegyzőkönyvezett késés.")
-        else:
-            st.info("Nincs elég adat a számításhoz.")
+            st.metric("Összesített késés", f"{osszes_ora} óra")
+            oradij = st.number_input("Kötbér (Ft/óra)", value=15000)
+            st.error(f"Kötbér összege: {osszes_ora * oradij:,.0f} Ft".replace(",", " "))
 
+# --- 5. DOKUMENTUM GENERÁLÓ (ÚJ!) ---
+elif page == "📄 Dokumentum generáló":
+    st.title("📄 Jegyzőkönyv és Jelentés exportálása")
+    st.info("Itt töltheted le PDF formátumban a hivatalos Lidl szállítási jegyzőkönyvet.")
+
+    if sheet:
+        data = sheet.get_all_values()
+        df = pd.DataFrame(data[1:], columns=data[0])
+        hibak = df[df['Hiba történt-e'] == 'Igen']
+        
+        if not hibak.empty:
+            kivalasztott_hiba = st.selectbox("Válassz ki egy hibát a jegyzőkönyvhöz:", 
+                                             hibak['Dátum'] + " - " + hibak['Munkaszakasz'])
+            
+            if st.button("PDF Jegyzőkönyv Generálása"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, "LIDL PROJEKT - SZÁLLÍTÁSI JEGYZŐKÖNYV", ln=True, align='C')
+                pdf.ln(10)
+                pdf.set_font("Arial", size=12)
+                pdf.cell(200, 10, f"Dátum: {datetime.now().strftime('%Y-%m-%d')}", ln=True)
+                pdf.cell(200, 10, f"Tárgy: Késedelmi kötbér és hiba rögzítése", ln=True)
+                pdf.ln(5)
+                pdf.multi_cell(0, 10, f"A mai napon rögzítésre került egy {kivalasztott_hiba} esemény, amely a projekt menetét befolyásolta. A Lidl standard szerint a 2 órát meghaladó késés kötbér-köteles.")
+                pdf.ln(5)
+                pdf.cell(200, 10, "Aláírás: ............................ (Ani-Roll Kft.)", ln=True)
+                
+                pdf_output = pdf.output(dest='S').encode('latin-1')
+                st.download_button(label="📥 PDF Letöltése", data=pdf_output, file_name="lidl_jegyzokonyv.pdf", mime="application/pdf")
+        else:
+            st.warning("Nincs rögzített hiba, amiből jegyzőkönyv készülhetne.")
 
 
 

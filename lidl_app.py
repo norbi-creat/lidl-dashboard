@@ -4,7 +4,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-# --- PASSWORD PROTECTION ---
+# --- JELSZÓ VÉDELEM ---
 def check_password():
     def password_entered():
         if st.session_state["password"] == "Lidl2025":
@@ -15,12 +15,11 @@ def check_password():
 
     if "password_correct" not in st.session_state:
         st.title("🔐 Ani-Roll Login")
-        st.text_input("Please enter password:", type="password", on_change=password_entered, key="password")
+        st.text_input("Kérem a jelszót:", type="password", on_change=password_entered, key="password")
         return False
     elif not st.session_state["password_correct"]:
-        st.title("🔐 Ani-Roll Login")
-        st.text_input("Please enter password:", type="password", on_change=password_entered, key="password")
-        st.error("😕 Incorrect password!")
+        st.error("😕 Hibás jelszó!")
+        st.text_input("Kérem a jelszót:", type="password", on_change=password_entered, key="password")
         return False
     else:
         return True
@@ -28,18 +27,63 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- CONNECTION ---
+# --- KAPCSOLÓDÁS A TÁBLÁZATHOZ ---
 def connect_to_sheets():
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = st.secrets["gcp_service_account"]
-            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-            creds = ServiceAccountCredentials.from_json_key_file_dict(creds_dict, scope)
-            client = gspread.authorize(creds)
-            sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
-            return sheet
+        creds_dict = st.secrets["gcp_service_account"]
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_key_file_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+        # Győződj meg róla, hogy a Google Táblázatod neve pontosan ez:
+        sheet = client.open("Lidl_Projekt_Adatbazis").sheet1
+        return sheet
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Csatlakozási hiba: {e}")
         return None
 
-st.success("Siker! Bejelentkezve.")
+# --- OLDALSÁV (MENÜ) ---
+st.sidebar.title("Menü")
+page = st.sidebar.radio("Válassz funkciót:", ["📊 Műszerfal", "📝 Napi jelentés", "💰 Kalkulátor"])
+
+sheet = connect_to_sheets()
+
+# --- 1. MŰSZERFAL (ADATOK MEGTEKINTÉSE) ---
+if page == "📊 Műszerfal":
+    st.title("🏗️ Projekt Áttekintés")
+    if sheet:
+        data = sheet.get_all_values()
+        if len(data) > 1:
+            df = pd.DataFrame(data[1:], columns=data[0])
+            st.write("### Utolsó rögzített tevékenységek")
+            st.dataframe(df.tail(10), use_container_width=True)
+        else:
+            st.info("Még nincs rögzített adat a táblázatban.")
+
+# --- 2. NAPI JELENTÉS (ADATBEKÜLDÉS) ---
+elif page == "📝 Napi jelentés":
+    st.title("📝 Napi Jelentés Rögzítése")
+    with st.form("adat_form"):
+        datum = st.date_input("Dátum", datetime.now())
+        fázis = st.selectbox("Munkafolyamat", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        letszam = st.number_input("Létszám (fő)", min_value=1, value=4)
+        leiras = st.text_area("Rövid leírás a napi munkáról")
+        
+        submit = st.form_submit_button("Adatok Mentése")
+        
+        if submit:
+            if sheet:
+                uj_sor = [str(datum), fázis, letszam, leiras, datetime.now().strftime("%H:%M:%S")]
+                sheet.append_row(uj_sor)
+                st.success("Adat elmentve a Google Táblázatba!")
+                st.balloons()
+
+# --- 3. KALKULÁTOR ---
+elif page == "💰 Kalkulátor":
+    st.title("💰 Gyors Kalkulátor")
+    st.info("Itt tudod gyorsan kiszámolni a költségeket.")
+    
+    egysegar = st.number_input("Egységár (Ft)", min_value=0, value=1000)
+    mennyiseg = st.number_input("Mennyiség", min_value=0.0, value=1.0)
+    
+    osszesen = egysegar * mennyiseg
+    st.metric("Végösszeg", f"{osszesen:,.0f} Ft".replace(",", " "))

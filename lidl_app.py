@@ -31,6 +31,7 @@ def connect_to_sheets():
         raw_creds = st.secrets["gcp_service_account"]
         creds_info = json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
         client = gspread.service_account_from_dict(creds_info)
+        # Itt fontos, hogy a táblázat neve pontosan ez legyen:
         return client.open("Lidl_Projekt_Adatbazis").sheet1
     except Exception as e:
         st.error(f"Hiba: {e}")
@@ -38,20 +39,20 @@ def connect_to_sheets():
 
 sheet = connect_to_sheets()
 
-# --- MENÜ ---
+# --- MENÜ (4 RÉSZ) ---
 page = st.sidebar.radio("Menü", ["📊 Műszerfal", "📝 Napi jelentés", "⚠️ Hiba jelentése", "💰 Kalkulátor"])
 
-# --- 1. MŰSZERFAL (Automatikus oszlopjavítással) ---
+# --- 1. MŰSZERFAL ---
 if page == "📊 Műszerfal":
     st.title("🏗️ Projekt Áttekintés")
     if sheet:
         data = sheet.get_all_values()
         if len(data) > 1:
             headers = data[0]
-            # Egyedivé tesszük a fejléceket, hogy ne legyen ValueError
+            # Egyedivé tesszük a fejléceket a megjelenítéshez
             unique_headers = [f"{h if h else 'Oszlop'}_{i}" if h in headers[:i] or not h else h for i, h in enumerate(headers)]
             df = pd.DataFrame(data[1:], columns=unique_headers)
-            st.dataframe(df.tail(15), use_container_width=True)
+            st.dataframe(df.tail(20), use_container_width=True)
         else:
             st.info("Még nincs rögzített adat.")
 
@@ -65,36 +66,44 @@ elif page == "📝 Napi jelentés":
         leiras = st.text_area("Leírás")
         submit_napi = st.form_submit_button("Mentés")
         
-        if submit_napi: # Fontos: Beljebb van kezdve!
+        if submit_napi:
             if sheet:
-                # 8 oszlop kényszerítése
+                # 8 oszlop: Dátum, Szakasz, Létszám, Leírás, Hiba?, Típus, Késés, Időbélyeg
                 uj_sor = [[str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]]
-                sheet.append_rows(uj_sor, value_input_option='RAW')
+                # Kényszerítjük az A1-től való keresést a table_range-el
+                sheet.append_rows(uj_sor, value_input_option='USER_ENTERED', table_range='A1:H1')
                 st.success("Sikeres mentés az A oszloptól!")
                 st.balloons()
 
 # --- 3. HIBA JELENTÉSE ---
 elif page == "⚠️ Hiba jelentése":
-    st.title("⚠️ Hiba/Késés")
+    st.title("⚠️ Hiba vagy Késés Jelentése")
     with st.form("hiba_form"):
         datum_h = st.date_input("Dátum", datetime.now())
-        fazis_h = st.selectbox("Hol?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
-        tipus = st.selectbox("Típus", ["Logisztikai", "Műszaki", "Időjárás"])
-        ora = st.number_input("Késés (óra)", min_value=0.0)
+        fazis_h = st.selectbox("Melyik fázis?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        tipus = st.selectbox("Hiba típusa", ["Logisztikai", "Műszaki", "Időjárás", "Személyi"])
+        ora = st.number_input("Késés (óra)", min_value=0.0, step=0.5)
         submit_hiba = st.form_submit_button("Hiba rögzítése")
         
-        if submit_hiba: # Fontos: Beljebb van kezdve!
+        if submit_hiba:
             if sheet:
-                # 8 oszlop kényszerítése, üres C és D oszloppal
+                # Üres helyeket hagyunk a Létszám(C) és Leírás(D) helyén
                 uj_sor_h = [[str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]]
-                sheet.append_rows(uj_sor_h, value_input_option='RAW')
-                st.error("Hiba rögzítve az A oszloptól!")
+                # Kényszerítjük az A1-től való keresést
+                sheet.append_rows(uj_sor_h, value_input_option='USER_ENTERED', table_range='A1:H1')
+                st.error("Hiba/Késés rögzítve!")
 
 # --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
-    st.title("💰 Kalkulátor")
-    netto = st.number_input("Nettó (Ft)", min_value=0, value=100000)
-    st.metric("Végösszeg (15% pufferrel)", f"{netto * 1.15:,.0f} Ft")
+    st.title("💰 Gyors Kalkulátor")
+    netto = st.number_input("Nettó becsült összeg (Ft)", min_value=0, value=100000)
+    puffer = netto * 0.15 # 15% kockázati puffer
+    brutto = netto + puffer
+    
+    st.metric("Puffer (15%)", f"{puffer:,.0f} Ft".replace(",", " "))
+    st.metric("Mindösszesen", f"{brutto:,.0f} Ft".replace(",", " "))
+    st.write("---")
+    st.info("A Lidl standard alapján 5% anyagveszteség és 20% időbeli ráhagyás javasolt.")
 
 
 

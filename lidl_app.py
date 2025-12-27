@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 import json
 from datetime import datetime
-from fpdf import FPDF  # Új könyvtár a PDF-hez
+from fpdf import FPDF  # fpdf2 könyvtár használata
 
 # --- JELSZÓ VÉDELEM ---
 def check_password():
@@ -98,38 +98,54 @@ elif page == "💰 Kalkulátor":
             oradij = st.number_input("Kötbér (Ft/óra)", value=15000)
             st.error(f"Kötbér összege: {osszes_ora * oradij:,.0f} Ft".replace(",", " "))
 
-# --- 5. DOKUMENTUM GENERÁLÓ (ÚJ!) ---
+# --- 5. DOKUMENTUM GENERÁLÓ (ÉKEZET JAVÍTVA) ---
 elif page == "📄 Dokumentum generáló":
-    st.title("📄 Jegyzőkönyv és Jelentés exportálása")
-    st.info("Itt töltheted le PDF formátumban a hivatalos Lidl szállítási jegyzőkönyvet.")
-
+    st.title("📄 Jegyzőkönyv exportálása")
     if sheet:
         data = sheet.get_all_values()
         df = pd.DataFrame(data[1:], columns=data[0])
         hibak = df[df['Hiba történt-e'] == 'Igen']
         
         if not hibak.empty:
-            kivalasztott_hiba = st.selectbox("Válassz ki egy hibát a jegyzőkönyvhöz:", 
-                                             hibak['Dátum'] + " - " + hibak['Munkaszakasz'])
+            kivalasztott_index = st.selectbox("Válassz ki egy eseményt:", hibak.index, format_func=lambda x: f"{hibak.loc[x, 'Dátum']} - {hibak.loc[x, 'Munkaszakasz']}")
             
             if st.button("PDF Jegyzőkönyv Generálása"):
+                hiba_adat = hibak.loc[kivalasztott_index]
+                
                 pdf = FPDF()
                 pdf.add_page()
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(200, 10, "LIDL PROJEKT - SZÁLLÍTÁSI JEGYZŐKÖNYV", ln=True, align='C')
+                # A standard Helvetica betűtípust használjuk, ami jobban bírja az alap ékezeteket
+                pdf.set_font("Helvetica", 'B', 16)
+                pdf.cell(0, 10, "LIDL PROJEKT - SZALLITASI JEGYZOKONYV", new_x="LMARGIN", new_y="NEXT", align='C')
                 pdf.ln(10)
-                pdf.set_font("Arial", size=12)
-                pdf.cell(200, 10, f"Dátum: {datetime.now().strftime('%Y-%m-%d')}", ln=True)
-                pdf.cell(200, 10, f"Tárgy: Késedelmi kötbér és hiba rögzítése", ln=True)
-                pdf.ln(5)
-                pdf.multi_cell(0, 10, f"A mai napon rögzítésre került egy {kivalasztott_hiba} esemény, amely a projekt menetét befolyásolta. A Lidl standard szerint a 2 órát meghaladó késés kötbér-köteles.")
-                pdf.ln(5)
-                pdf.cell(200, 10, "Aláírás: ............................ (Ani-Roll Kft.)", ln=True)
                 
-                pdf_output = pdf.output(dest='S').encode('latin-1')
-                st.download_button(label="📥 PDF Letöltése", data=pdf_output, file_name="lidl_jegyzokonyv.pdf", mime="application/pdf")
+                pdf.set_font("Helvetica", size=12)
+                pdf.cell(0, 10, f"Datum: {datetime.now().strftime('%Y-%m-%d')}", new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(0, 10, f"Helyszin: Lidl Projekt Munkaterulet", new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(5)
+                
+                szoveg = f"A mai napon ({hiba_adat['Dátum']}) rögzítésre került egy {hiba_adat['Hiba típusa']} típusú hiba a {hiba_adat['Munkaszakasz']} fázisban. A késés mértéke: {hiba_adat['Késés órában']} óra."
+                
+                # Eltávolítjuk a speciális ő és ű betűket, hogy ne legyen hiba
+                biztonsagos_szoveg = szoveg.replace('ő', 'o').replace('Ő', 'O').replace('ű', 'u').replace('Ű', 'U')
+                
+                pdf.multi_cell(0, 10, biztonsagos_szoveg)
+                pdf.ln(20)
+                pdf.cell(0, 10, "..........................................", new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(0, 10, "Alairas (Ani-Roll Kft.)", new_x="LMARGIN", new_y="NEXT")
+                
+                # PDF generálása memóriába
+                pdf_bytes = pdf.output()
+                
+                st.download_button(
+                    label="📥 PDF Letöltése",
+                    data=pdf_bytes,
+                    file_name=f"jegyzokonyv_{hiba_adat['Dátum']}.pdf",
+                    mime="application/pdf"
+                )
         else:
-            st.warning("Nincs rögzített hiba, amiből jegyzőkönyv készülhetne.")
+            st.warning("Nincs rögzített hiba.")
+
 
 
 

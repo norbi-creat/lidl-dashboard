@@ -41,54 +41,55 @@ sheet = connect_to_sheets()
 # --- MENÜ ---
 page = st.sidebar.radio("Menü", ["📊 Műszerfal", "📝 Napi jelentés", "⚠️ Hiba jelentése", "💰 Kalkulátor"])
 
-# --- 1. MŰSZERFAL ---
+# --- 1. MŰSZERFAL (Automatikus oszlopjavítással) ---
 if page == "📊 Műszerfal":
     st.title("🏗️ Projekt Áttekintés")
     if sheet:
         data = sheet.get_all_values()
         if len(data) > 1:
             headers = data[0]
-            rows = data[1:]
-            
-            # --- JAVÍTÁS: Automatikusan egyedivé tesszük a fejlécneveket ---
-            unique_headers = []
-            for i, h in enumerate(headers):
-                new_header = h if h.strip() else f"Oszlop_{i}"
-                if new_header in unique_headers:
-                    unique_headers.append(f"{new_header}_{i}")
-                else:
-                    unique_headers.append(new_header)
-            
-            df = pd.DataFrame(rows, columns=unique_headers)
-            
-            st.write("### Utolsó rögzített tevékenységek")
+            # Egyedivé tesszük a fejléceket, hogy ne legyen ValueError
+            unique_headers = [f"{h if h else 'Oszlop'}_{i}" if h in headers[:i] or not h else h for i, h in enumerate(headers)]
+            df = pd.DataFrame(data[1:], columns=unique_headers)
             st.dataframe(df.tail(15), use_container_width=True)
         else:
-            st.info("A táblázat jelenleg üres. Rögzítsen új adatot a menüben!")
+            st.info("Még nincs rögzített adat.")
 
-# --- 2. NAPI JELENTÉS BEKÜLDÉSE ---
-if submit_napi:
-    if sheet:
-        # PONTOSAN 8 ADAT: A(Dátum), B(Szakasz), C(Létszám), D(Leírás), E(Hiba), F(Típus), G(Késés), H(Idő)
-        uj_sor = [[str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]]
+# --- 2. NAPI JELENTÉS ---
+elif page == "📝 Napi jelentés":
+    st.title("📝 Napi Jelentés")
+    with st.form("napi_form"):
+        datum = st.date_input("Dátum", datetime.now())
+        fazis = st.selectbox("Munka", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        letszam = st.number_input("Létszám", min_value=1, value=4)
+        leiras = st.text_area("Leírás")
+        submit_napi = st.form_submit_button("Mentés")
         
-        # Ez a parancs kényszeríti az A oszloptól való írást:
-        sheet.append_rows(uj_sor, value_input_option='RAW')
-        
-        st.success("Adat elmentve az A oszloptól!")
-        st.balloons()
+        if submit_napi: # Fontos: Beljebb van kezdve!
+            if sheet:
+                # 8 oszlop kényszerítése
+                uj_sor = [[str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]]
+                sheet.append_rows(uj_sor, value_input_option='RAW')
+                st.success("Sikeres mentés az A oszloptól!")
+                st.balloons()
 
-# --- 3. HIBA JELENTÉSE BEKÜLDÉSE ---
-if submit_hiba:
-    if sheet:
-        # Itt is PONTOSAN 8 ADAT, üres helyekkel a C és D oszlopban
-        uj_sor_h = [[str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]]
+# --- 3. HIBA JELENTÉSE ---
+elif page == "⚠️ Hiba jelentése":
+    st.title("⚠️ Hiba/Késés")
+    with st.form("hiba_form"):
+        datum_h = st.date_input("Dátum", datetime.now())
+        fazis_h = st.selectbox("Hol?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        tipus = st.selectbox("Típus", ["Logisztikai", "Műszaki", "Időjárás"])
+        ora = st.number_input("Késés (óra)", min_value=0.0)
+        submit_hiba = st.form_submit_button("Hiba rögzítése")
         
-        # Kényszerített írás az A oszloptól:
-        sheet.append_rows(uj_sor_h, value_input_option='RAW')
-        
-        st.error("Hiba rögzítve az A oszloptól!")
-        
+        if submit_hiba: # Fontos: Beljebb van kezdve!
+            if sheet:
+                # 8 oszlop kényszerítése, üres C és D oszloppal
+                uj_sor_h = [[str(datum_h), fazis_h, "", "", "Igen", tipus, ora, datetime.now().strftime("%H:%M:%S")]]
+                sheet.append_rows(uj_sor_h, value_input_option='RAW')
+                st.error("Hiba rögzítve az A oszloptól!")
+
 # --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
     st.title("💰 Kalkulátor")

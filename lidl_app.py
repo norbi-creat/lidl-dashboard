@@ -56,7 +56,7 @@ if page == "📊 Műszerfal":
         data = sheet.get_all_values()
         if len(data) > 1:
             df = pd.DataFrame(data[1:], columns=data[0])
-            # Dupla oszlopnevek kezelése
+            # Dupla oszlopnevek kezelése az appban
             df.columns = [f"{col}_{i}" if list(data[0]).count(col) > 1 else col for i, col in enumerate(data[0])]
             st.write("### Utolsó rögzített tevékenységek")
             st.dataframe(df.tail(15), use_container_width=True)
@@ -64,40 +64,51 @@ if page == "📊 Műszerfal":
             st.info("Még nincs rögzített adat.")
 
 # --- 2. NAPI JELENTÉS ---
-if page == "📝 Napi jelentés":
-    # ... (a form marad)
-    if submit:
-        if sheet:
-            # Oszlopok: A=Dátum, B=Szakasz, C=Létszám, D=Leírás, E=Hiba(Nem), F=Típus(-), G=Késés(0), H=Idő
-            uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
-            sheet.append_row(uj_sor)
-            st.success("Adat elmentve!")
+elif page == "📝 Napi jelentés":
+    st.title("📝 Napi Jelentés Rögzítése")
+    with st.form("napi_form"):
+        datum = st.date_input("Dátum", datetime.now())
+        fazis = st.selectbox("Munkafolyamat", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Áthidalás", "Egyéb"])
+        letszam = st.number_input("Létszám (fő)", min_value=1, value=4)
+        leiras = st.text_area("Rövid leírás a napi munkáról")
+        
+        submit_napi = st.form_submit_button("Adatok Mentése")
+        
+        if submit_napi:
+            if sheet:
+                # PONTOSAN 8 OSZLOP: Dátum, Szakasz, Létszám, Leírás, Hiba?, Típus, Késés, Időbélyeg
+                uj_sor = [str(datum), fazis, letszam, leiras, "Nem", "-", 0, datetime.now().strftime("%H:%M:%S")]
+                sheet.append_row(uj_sor)
+                st.success("Adat elmentve!")
+                st.balloons()
 
-# --- 3. HIBA JELENTÉSE (JAVÍTOTT SORREND) ---
+# --- 3. HIBA JELENTÉSE ---
 elif page == "⚠️ Hiba jelentése":
-    # ... (a form marad)
-    if submit_h:
-        if sheet:
-            # Oszlopok: A=Dátum, B=Szakasz, C=Létszám(üres), D=Leírás(üres), E=Hiba(Igen), F=Típus, G=Késés, H=Idő
-            uj_sor_h = [str(datum_h), szakasz_h, "", "", "Igen", hiba_tipus, keses, datetime.now().strftime("%H:%M:%S")]
-            sheet.append_row(uj_sor_h)
-            st.error("Hiba rögzítve!")
+    st.title("⚠️ Probléma vagy Késés Jelentése")
+    with st.form("hiba_form"):
+        st.warning("Ezt akkor töltsd ki, ha valami hátráltatja a munkát!")
+        datum_h = st.date_input("Dátum", datetime.now())
+        szakasz_h = st.selectbox("Melyik fázisnál?", ["Földmunka", "Zsaluzás", "Vasszerelés", "Betonozás", "Egyéb"])
+        hiba_tipus = st.selectbox("Hiba típusa", ["Logisztikai", "Műszaki", "Időjárás", "Személyi"])
+        keses = st.number_input("Várható késés (óra)", min_value=0.0, step=0.5)
+        
+        submit_hiba = st.form_submit_button("Hiba rögzítése")
+        
+        if submit_hiba:
+            if sheet:
+                # PONTOSAN 8 OSZLOP: A 3. és 4. oszlop üres marad (""), hogy a hiba adatai az E-F-G-be kerüljenek
+                uj_sor_h = [str(datum_h), szakasz_h, "", "", "Igen", hiba_tipus, keses, datetime.now().strftime("%H:%M:%S")]
+                sheet.append_row(uj_sor_h)
+                st.error("Hiba rögzítve!")
 
 # --- 4. KALKULÁTOR ---
 elif page == "💰 Kalkulátor":
-    st.title("💰 Gyors Kalkulátor (Lidl Standard)")
-    st.info("15% kockázati pufferrel számolva.")
-    
+    st.title("💰 Gyors Kalkulátor")
     netto = st.number_input("Nettó becsült összeg (Ft)", min_value=0, value=100000)
     puffer = netto * 0.15
     brutto = netto + puffer
-    
-    col1, col2 = st.columns(2)
-    col1.metric("Puffer (15%)", f"{puffer:,.0f} Ft".replace(",", " "))
-    col2.metric("Mindösszesen", f"{brutto:,.0f} Ft".replace(",", " "))
-    
-    st.write("---")
-    st.write("📋 **Projekt Protokoll:** 5% anyagveszteség és 20% időbeli ráhagyás javasolt.")
+    st.metric("Puffer (15%)", f"{puffer:,.0f} Ft".replace(",", " "))
+    st.metric("Mindösszesen", f"{brutto:,.0f} Ft".replace(",", " "))
 
 
 

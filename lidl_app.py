@@ -151,7 +151,9 @@ elif page == "📄 Dokumentum generáló":
                     
                     # PDF mentése változóba
                     try:
-                        pdf_bytes = pdf.output() # fpdf2 esetén ez byte-okat ad vissza
+                        pdf_data = pdf.output() 
+                        # Átalakítás bytearray-ről bytes-ra, hogy a Streamlit elfogadja
+                        pdf_bytes = bytes(pdf_data) 
                         
                         st.download_button(
                             label="📥 PDF Letöltése",
@@ -163,6 +165,7 @@ elif page == "📄 Dokumentum generáló":
                         st.error(f"Hiba a PDF generálása közben: {e}")
             else:
                 st.warning("Nincs rögzített hiba a táblázatban.")
+
 
 
 
